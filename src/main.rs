@@ -1,3 +1,13 @@
+use argh::FromArgs;
+
+#[derive(FromArgs)]
+/// file - The input file
+struct Args {
+    #[argh(positional)]
+    file: String,
+}
+
 fn main() {
-    println!("Hello, world!");
+    let args: Args = argh::from_env();
+    println!("Got file {}", args.file);
 }
