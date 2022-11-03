@@ -1,3 +1,5 @@
+mod scanner;
+
 use argh::FromArgs;
 use std::fs::File;
 use std::io::{Read, Result};
