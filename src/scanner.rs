@@ -28,7 +28,7 @@ impl<'a> Scanner<'a> {
 
     fn consume_identifier(&mut self) -> Token<'a> {
         let s = self.it.as_str();
-        self.skip(|c| c.is_alphanumeric());
+        self.skip(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
         Token::Identifier(&s[..s.len() - self.it.as_str().len()])
     }
 }
@@ -41,7 +41,7 @@ impl<'a> Iterator for Scanner<'a> {
         if let Some(c) = self.it.clone().next() {
             if c.is_ascii_digit() {
                 Some(self.consume_number())
-            } else if c.is_alphabetic() {
+            } else if c.is_ascii_alphabetic() {
                 Some(self.consume_identifier())
             } else if c == '=' {
                 self.it.next();
@@ -87,13 +87,15 @@ mod tests {
     }
 
     #[test]
-    fn scan_equal() {
-        let mut s = Scanner { it: "a = 1 + 2".chars() };
+    fn scan_assign() {
+        let mut s = Scanner {
+            it: "my_var = 4.5 + 1.5".chars(),
+        };
 
-        assert_eq!(s.next(), Some(Token::Identifier("a")));
+        assert_eq!(s.next(), Some(Token::Identifier("my_var")));
         assert_eq!(s.next(), Some(Token::Equal));
-        assert_eq!(s.next(), Some(Token::Number("1")));
+        assert_eq!(s.next(), Some(Token::Number("4.5")));
         assert_eq!(s.next(), Some(Token::Plus));
-        assert_eq!(s.next(), Some(Token::Number("2")));
+        assert_eq!(s.next(), Some(Token::Number("1.5")));
     }
 }
