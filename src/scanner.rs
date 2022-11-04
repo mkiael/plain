@@ -1,6 +1,7 @@
 #[derive(Debug, PartialEq)]
 enum Token<'a> {
     Plus,
+    Identifier(&'a str),
     Number(&'a str),
 }
 
@@ -23,6 +24,12 @@ impl<'a> Scanner<'a> {
         self.skip(|c| is_number(c));
         Token::Number(&s[..s.len() - self.it.as_str().len()])
     }
+
+    fn consume_identifier(&mut self) -> Token<'a> {
+        let s = self.it.as_str();
+        self.skip(|c| c.is_alphanumeric());
+        Token::Identifier(&s[..s.len() - self.it.as_str().len()])
+    }
 }
 
 impl<'a> Iterator for Scanner<'a> {
@@ -33,6 +40,8 @@ impl<'a> Iterator for Scanner<'a> {
         if let Some(c) = self.it.clone().next() {
             if c.is_ascii_digit() {
                 Some(self.consume_number())
+            } else if c.is_alphabetic() {
+                Some(self.consume_identifier())
             } else if c == '+' {
                 self.it.next();
                 Some(Token::Plus)
@@ -53,6 +62,15 @@ fn is_number(c: char) -> bool {
 mod tests {
     use super::Scanner;
     use super::Token;
+
+    #[test]
+    fn scan_identifier() {
+        let mut s = Scanner { it: "abc f0o 123".chars() };
+
+        assert_eq!(s.next(), Some(Token::Identifier("abc")));
+        assert_eq!(s.next(), Some(Token::Identifier("f0o")));
+        assert_eq!(s.next(), Some(Token::Number("123")));
+    }
 
     #[test]
     fn scan_number() {
