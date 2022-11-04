@@ -8,10 +8,24 @@ struct Scanner<'a> {
     it: std::str::Chars<'a>,
 }
 
+impl<'a> Scanner<'a> {
+    fn skip_whitespace(&mut self) {
+        while self
+            .it
+            .clone()
+            .next()
+            .map_or(false, |c| c.is_ascii_whitespace())
+        {
+            self.it.next();
+        }
+    }
+}
+
 impl<'a> Iterator for Scanner<'a> {
     type Item = Token<'a>;
 
-    fn next(& mut self) -> Option<Self::Item> {
+    fn next(&mut self) -> Option<Self::Item> {
+        self.skip_whitespace();
         if let Some(c) = self.it.clone().next() {
             if c.is_ascii_digit() {
                 let s = self.it.as_str();
@@ -42,14 +56,14 @@ mod tests {
 
     #[test]
     fn scan_number() {
-        let mut s = Scanner { it: "12.3".chars() };
+        let mut s = Scanner{ it: "12.3".chars() };
 
         assert_eq!(s.next(), Some(Token::Number("12.3")));
     }
 
     #[test]
     fn scan_plus() {
-        let mut s = Scanner { it: "1+2".chars() };
+        let mut s = Scanner{ it: "1 + 2".chars() };
 
         assert_eq!(s.next(), Some(Token::Number("1")));
         assert_eq!(s.next(), Some(Token::Plus));
