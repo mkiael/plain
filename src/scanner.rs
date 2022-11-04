@@ -1,5 +1,6 @@
 #[derive(Debug, PartialEq)]
 enum Token<'a> {
+    Equal,
     Plus,
     Identifier(&'a str),
     Number(&'a str),
@@ -42,6 +43,9 @@ impl<'a> Iterator for Scanner<'a> {
                 Some(self.consume_number())
             } else if c.is_alphabetic() {
                 Some(self.consume_identifier())
+            } else if c == '=' {
+                self.it.next();
+                Some(Token::Equal)
             } else if c == '+' {
                 self.it.next();
                 Some(Token::Plus)
@@ -65,7 +69,9 @@ mod tests {
 
     #[test]
     fn scan_identifier() {
-        let mut s = Scanner { it: "abc f0o 123".chars() };
+        let mut s = Scanner {
+            it: "abc f0o 123".chars(),
+        };
 
         assert_eq!(s.next(), Some(Token::Identifier("abc")));
         assert_eq!(s.next(), Some(Token::Identifier("f0o")));
@@ -74,17 +80,18 @@ mod tests {
 
     #[test]
     fn scan_number() {
-        let mut s = Scanner { it: "12.3".chars() };
+        let mut s = Scanner { it: "44 12.3".chars() };
 
+        assert_eq!(s.next(), Some(Token::Number("44")));
         assert_eq!(s.next(), Some(Token::Number("12.3")));
     }
 
     #[test]
-    fn scan_plus() {
-        let mut s = Scanner {
-            it: "1 + 2".chars(),
-        };
+    fn scan_equal() {
+        let mut s = Scanner { it: "a = 1 + 2".chars() };
 
+        assert_eq!(s.next(), Some(Token::Identifier("a")));
+        assert_eq!(s.next(), Some(Token::Equal));
         assert_eq!(s.next(), Some(Token::Number("1")));
         assert_eq!(s.next(), Some(Token::Plus));
         assert_eq!(s.next(), Some(Token::Number("2")));
