@@ -1,5 +1,6 @@
 #[derive(Debug, PartialEq)]
 enum Token<'a> {
+    Plus,
     Number(&'a str),
 }
 
@@ -18,6 +19,9 @@ impl<'a> Iterator for Scanner<'a> {
                     self.it.next();
                 }
                 Some(Token::Number(&s[..s.len() - self.it.as_str().len()]))
+            } else if c == '+' {
+                self.it.next();
+                Some(Token::Plus)
             } else {
                 None
             }
@@ -37,9 +41,18 @@ mod tests {
     use super::Token;
 
     #[test]
-    fn scanner() {
+    fn scan_number() {
         let mut s = Scanner { it: "12.3".chars() };
 
         assert_eq!(s.next(), Some(Token::Number("12.3")));
+    }
+
+    #[test]
+    fn scan_plus() {
+        let mut s = Scanner { it: "1+2".chars() };
+
+        assert_eq!(s.next(), Some(Token::Number("1")));
+        assert_eq!(s.next(), Some(Token::Plus));
+        assert_eq!(s.next(), Some(Token::Number("2")));
     }
 }
