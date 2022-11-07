@@ -1,3 +1,4 @@
+mod interpreter;
 mod scanner;
 
 use argh::FromArgs;
@@ -19,8 +20,9 @@ fn main() -> Result<()> {
 
     file.read_to_string(&mut buffer)?;
 
-    for c in buffer.chars() {
-        print!("{}", c);
+    match interpreter::interprete(&buffer) {
+        Ok(value) => println!("{:?}", value),
+        Err(e) => println!("Syntax error: {:?}", e),
     }
 
     Ok(())
