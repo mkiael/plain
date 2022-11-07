@@ -66,6 +66,23 @@ impl Expression for BinaryExpr {
     }
 }
 
+struct UnaryExpression {
+    operator: Token,
+    right: Box<dyn Expression>,
+}
+
+impl Expression for UnaryExpression {
+    fn eval(&self) -> Result<Value, SyntaxError> {
+        let right_value = self.right.eval()?;
+        match self.operator {
+            Token::Minus => match right_value {
+                Value::Float(rf) => Ok(Value::Float(-rf)),
+            },
+            _ => Err(SyntaxError::new("Invalid unary operator")),
+        }
+    }
+}
+
 struct LiteralNumber {
     value: Value,
 }
@@ -92,10 +109,10 @@ impl<'a> Parser<'a> {
     }
 
     fn term(&mut self) -> ResultExpr {
-        let mut expr = self.primary()?;
+        let mut expr = self.unary()?;
         while self.is_next(Token::Plus) {
             let op = self.next_token().unwrap();
-            let right = self.primary()?;
+            let right = self.unary()?;
             expr = Box::new(BinaryExpr {
                 left: expr,
                 operator: op,
@@ -103,6 +120,17 @@ impl<'a> Parser<'a> {
             });
         }
         return Ok(expr);
+    }
+
+    fn unary(&mut self) -> ResultExpr {
+        if self.is_next(Token::Minus) {
+            Ok(Box::new(UnaryExpression {
+                operator: self.next_token().unwrap(),
+                right: self.primary()?,
+            }))
+        } else {
+            Ok(self.primary()?)
+        }
     }
 
     fn primary(&mut self) -> ResultExpr {
@@ -154,6 +182,16 @@ mod tests {
     }
 
     #[test]
+    fn negative_number() {
+        let value = interprete("-3.2");
+
+        match value {
+            Ok(v) => assert_eq!(v, Value::Float(-3.2)),
+            _ => assert!(false),
+        }
+    }
+
+    #[test]
     fn interpret_addition() {
         let value = interprete("45 + 101");
 
@@ -175,10 +213,10 @@ mod tests {
 
     #[test]
     fn interpret_multiple_factors() {
-        let value = interprete("0.5 + 3 + 86.8 + 1000.0");
+        let value = interprete("0.5 + 3 + 86.8 + 1000.0 + -500.0");
 
         match value {
-            Ok(v) => assert_eq!(v, Value::Float(1090.3)),
+            Ok(v) => assert_eq!(v, Value::Float(590.3)),
             _ => assert!(false),
         }
     }

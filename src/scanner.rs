@@ -1,6 +1,7 @@
 #[derive(Debug, PartialEq, Clone)]
 pub enum Token {
     Equal,
+    Minus,
     Plus,
     Identifier(String),
     Number(String),
@@ -51,6 +52,9 @@ impl<'a> Iterator for Scanner<'a> {
             } else if c == '=' {
                 self.it.next();
                 Some(Token::Equal)
+            } else if c == '-' {
+                self.it.next();
+                Some(Token::Minus)
             } else if c == '+' {
                 self.it.next();
                 Some(Token::Plus)
@@ -85,9 +89,10 @@ mod tests {
 
     #[test]
     fn scan_number() {
-        let mut s = Scanner { it: "44 12.3".chars() };
+        let mut s = Scanner { it: "44 -12.3".chars() };
 
         assert_eq!(s.next(), Some(Token::Number(String::from("44"))));
+        assert_eq!(s.next(), Some(Token::Minus));
         assert_eq!(s.next(), Some(Token::Number(String::from("12.3"))));
     }
 
