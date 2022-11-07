@@ -33,6 +33,10 @@ pub enum Value {
     Float(f64),
 }
 
+fn is_same_value_type(l: &Value, r: &Value) -> bool {
+    std::mem::discriminant(l) == std::mem::discriminant(r)
+}
+
 trait Expression {
     fn eval(&self) -> Result<Value, SyntaxError>;
 }
@@ -47,13 +51,17 @@ impl Expression for BinaryExpr {
     fn eval(&self) -> Result<Value, SyntaxError> {
         let left_value = self.left.eval()?;
         let right_value = self.right.eval()?;
-        match self.operator {
-            Token::Plus => match right_value {
-                Value::Float(rf) => match left_value {
-                    Value::Float(lf) => Ok(Value::Float(rf + lf)),
+        if is_same_value_type(&left_value, &right_value) {
+            match self.operator {
+                Token::Plus => match right_value {
+                    Value::Float(rf) => match left_value {
+                        Value::Float(lf) => Ok(Value::Float(rf + lf)),
+                    },
                 },
-            },
-            _ => Err(SyntaxError::new("Invalid operands")),
+                _ => Err(SyntaxError::new("Unsupported operator")),
+            }
+        } else {
+            Err(SyntaxError::new("Type mismatch in binary expression"))
         }
     }
 }
