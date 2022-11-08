@@ -52,10 +52,11 @@ impl Expression for BinaryExpr {
         let left_value = self.left.eval()?;
         let right_value = self.right.eval()?;
         if is_same_value_type(&left_value, &right_value) {
-            match right_value {
-                Value::Float(rf) => match left_value {
-                    Value::Float(lf) => match self.operator {
-                        Token::Plus => Ok(Value::Float(rf + lf)),
+            match left_value {
+                Value::Float(lf) => match right_value {
+                    Value::Float(rf) => match self.operator {
+                        Token::Plus => Ok(Value::Float(lf + rf)),
+                        Token::Minus => Ok(Value::Float(lf - rf)),
                         _ => Err(SyntaxError::new("Unsupported operator")),
                     },
                 },
@@ -110,7 +111,7 @@ impl<'a> Parser<'a> {
 
     fn term(&mut self) -> ResultExpr {
         let mut expr = self.unary()?;
-        while self.is_next(Token::Plus) {
+        while self.is_next(&[Token::Plus, Token::Minus]) {
             let op = self.next_token().unwrap();
             let right = self.unary()?;
             expr = Box::new(BinaryExpr {
@@ -123,7 +124,7 @@ impl<'a> Parser<'a> {
     }
 
     fn unary(&mut self) -> ResultExpr {
-        if self.is_next(Token::Minus) {
+        if self.is_next(&[Token::Minus]) {
             Ok(Box::new(UnaryExpression {
                 operator: self.next_token().unwrap(),
                 right: self.primary()?,
@@ -145,9 +146,9 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn is_next(&self, token: Token) -> bool {
-        if let Some(t) = self.peek() {
-            t == token
+    fn is_next(&self, tokens: &[Token]) -> bool {
+        if let Some(token) = self.peek() {
+            tokens.into_iter().any(|t| *t == token)
         } else {
             false
         }
@@ -197,6 +198,26 @@ mod tests {
 
         match value {
             Ok(v) => assert_eq!(v, Value::Float(146.0)),
+            _ => assert!(false),
+        }
+    }
+
+    #[test]
+    fn interpret_subtraction() {
+        let value = interprete("320 - 25");
+
+        match value {
+            Ok(v) => assert_eq!(v, Value::Float(295.0)),
+            _ => assert!(false),
+        }
+    }
+
+    #[test]
+    fn interpret_subtraction_negative_number() {
+        let value = interprete("10 - -5");
+
+        match value {
+            Ok(v) => assert_eq!(v, Value::Float(15.0)),
             _ => assert!(false),
         }
     }
