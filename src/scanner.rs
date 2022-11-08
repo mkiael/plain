@@ -99,7 +99,7 @@ mod tests {
     #[test]
     fn scan_assign() {
         let mut s = Scanner {
-            it: "my_var = 4.5 + 1.5".chars(),
+            it: "my_var = 4.5 + 1.5 - 1.0".chars(),
         };
 
         assert_eq!(s.next(), Some(Token::Identifier(String::from("my_var"))));
@@ -107,5 +107,7 @@ mod tests {
         assert_eq!(s.next(), Some(Token::Number(String::from("4.5"))));
         assert_eq!(s.next(), Some(Token::Plus));
         assert_eq!(s.next(), Some(Token::Number(String::from("1.5"))));
+        assert_eq!(s.next(), Some(Token::Minus));
+        assert_eq!(s.next(), Some(Token::Number(String::from("1.0"))));
     }
 }
