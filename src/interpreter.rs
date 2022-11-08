@@ -52,13 +52,13 @@ impl Expression for BinaryExpr {
         let left_value = self.left.eval()?;
         let right_value = self.right.eval()?;
         if is_same_value_type(&left_value, &right_value) {
-            match self.operator {
-                Token::Plus => match right_value {
-                    Value::Float(rf) => match left_value {
-                        Value::Float(lf) => Ok(Value::Float(rf + lf)),
+            match right_value {
+                Value::Float(rf) => match left_value {
+                    Value::Float(lf) => match self.operator {
+                        Token::Plus => Ok(Value::Float(rf + lf)),
+                        _ => Err(SyntaxError::new("Unsupported operator")),
                     },
                 },
-                _ => Err(SyntaxError::new("Unsupported operator")),
             }
         } else {
             Err(SyntaxError::new("Type mismatch in binary expression"))
