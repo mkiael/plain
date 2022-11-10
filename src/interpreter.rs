@@ -55,6 +55,7 @@ impl Expression for BinaryExpr {
             match left_value {
                 Value::Float(lf) => match right_value {
                     Value::Float(rf) => match self.operator {
+                        Token::Asterisc => Ok(Value::Float(lf * rf)),
                         Token::Plus => Ok(Value::Float(lf + rf)),
                         Token::Minus => Ok(Value::Float(lf - rf)),
                         _ => Err(SyntaxError::new("Unsupported operator")),
@@ -110,8 +111,22 @@ impl<'a> Parser<'a> {
     }
 
     fn term(&mut self) -> ResultExpr {
-        let mut expr = self.unary()?;
+        let mut expr = self.factor()?;
         while self.is_next(&[Token::Plus, Token::Minus]) {
+            let op = self.next_token().unwrap();
+            let right = self.factor()?;
+            expr = Box::new(BinaryExpr {
+                left: expr,
+                operator: op,
+                right,
+            });
+        }
+        return Ok(expr);
+    }
+
+    fn factor(&mut self) -> ResultExpr {
+        let mut expr = self.unary()?;
+        while self.is_next(&[Token::Asterisc]) {
             let op = self.next_token().unwrap();
             let right = self.unary()?;
             expr = Box::new(BinaryExpr {
@@ -249,6 +264,26 @@ mod tests {
         match value {
             Ok(_) => assert!(false),
             Err(e) => assert_eq!("Invalid primary token", e.what),
+        }
+    }
+
+    #[test]
+    fn multiplication() {
+        let value = interprete("3 * 2 + 1");
+
+        match value {
+            Ok(v) => assert_eq!(v, Value::Float(7.0)),
+            _ => assert!(false),
+        }
+    }
+
+    #[test]
+    fn multiplication_precedence() {
+        let value = interprete("3 + 2 * 1");
+
+        match value {
+            Ok(v) => assert_eq!(v, Value::Float(5.0)),
+            _ => assert!(false),
         }
     }
 }

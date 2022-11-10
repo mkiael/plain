@@ -1,5 +1,6 @@
 #[derive(Debug, PartialEq, Clone)]
 pub enum Token {
+    Asterisc,
     Equal,
     Minus,
     Plus,
@@ -49,6 +50,9 @@ impl<'a> Iterator for Scanner<'a> {
                 Some(self.consume_number())
             } else if c.is_ascii_alphabetic() {
                 Some(self.consume_identifier())
+            } else if c == '*' {
+                self.it.next();
+                Some(Token::Asterisc)
             } else if c == '=' {
                 self.it.next();
                 Some(Token::Equal)
@@ -99,7 +103,7 @@ mod tests {
     #[test]
     fn scan_assign() {
         let mut s = Scanner {
-            it: "my_var = 4.5 + 1.5 - 1.0".chars(),
+            it: "my_var = 4.5 + 1.5 - 1.0 * 2.0".chars(),
         };
 
         assert_eq!(s.next(), Some(Token::Identifier(String::from("my_var"))));
@@ -109,5 +113,7 @@ mod tests {
         assert_eq!(s.next(), Some(Token::Number(String::from("1.5"))));
         assert_eq!(s.next(), Some(Token::Minus));
         assert_eq!(s.next(), Some(Token::Number(String::from("1.0"))));
+        assert_eq!(s.next(), Some(Token::Asterisc));
+        assert_eq!(s.next(), Some(Token::Number(String::from("2.0"))));
     }
 }
