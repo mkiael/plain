@@ -58,6 +58,7 @@ impl Expression for BinaryExpr {
                         Token::Asterisc => Ok(Value::Float(lf * rf)),
                         Token::Plus => Ok(Value::Float(lf + rf)),
                         Token::Minus => Ok(Value::Float(lf - rf)),
+                        Token::Slash => Ok(Value::Float(lf / rf)),
                         _ => Err(SyntaxError::new("Unsupported operator")),
                     },
                 },
@@ -126,7 +127,7 @@ impl<'a> Parser<'a> {
 
     fn factor(&mut self) -> ResultExpr {
         let mut expr = self.unary()?;
-        while self.is_next(&[Token::Asterisc]) {
+        while self.is_next(&[Token::Asterisc, Token::Slash]) {
             let op = self.next_token().unwrap();
             let right = self.unary()?;
             expr = Box::new(BinaryExpr {
@@ -278,11 +279,21 @@ mod tests {
     }
 
     #[test]
-    fn multiplication_precedence() {
-        let value = interprete("3 + 2 * 1");
+    fn division() {
+        let value = interprete("3 / 2 + 1");
 
         match value {
-            Ok(v) => assert_eq!(v, Value::Float(5.0)),
+            Ok(v) => assert_eq!(v, Value::Float(2.5)),
+            _ => assert!(false),
+        }
+    }
+
+    #[test]
+    fn arithmetic_precedence() {
+        let value = interprete("3 + 5 / 2 * 3 + 1");
+
+        match value {
+            Ok(v) => assert_eq!(v, Value::Float(11.5)),
             _ => assert!(false),
         }
     }
