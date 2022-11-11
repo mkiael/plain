@@ -15,7 +15,7 @@ pub struct Scanner<'a> {
 
 impl<'a> Scanner<'a> {
     pub fn new(input: &'a str) -> Self {
-        Scanner{ it: input.chars() }
+        Scanner { it: input.chars() }
     }
 
     fn skip<F>(&mut self, f: F)
@@ -93,7 +93,9 @@ mod tests {
 
     #[test]
     fn scan_number() {
-        let mut s = Scanner { it: "44 -12.3".chars() };
+        let mut s = Scanner {
+            it: "44 -12.3".chars(),
+        };
 
         assert_eq!(s.next(), Some(Token::Number(String::from("44"))));
         assert_eq!(s.next(), Some(Token::Minus));
