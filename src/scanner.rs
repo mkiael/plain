@@ -4,6 +4,7 @@ pub enum Token {
     Equal,
     Minus,
     Plus,
+    Slash,
     Identifier(String),
     Number(String),
 }
@@ -62,6 +63,9 @@ impl<'a> Iterator for Scanner<'a> {
             } else if c == '+' {
                 self.it.next();
                 Some(Token::Plus)
+            } else if c == '/' {
+                self.it.next();
+                Some(Token::Slash)
             } else {
                 None
             }
@@ -105,7 +109,7 @@ mod tests {
     #[test]
     fn scan_assign() {
         let mut s = Scanner {
-            it: "my_var = 4.5 + 1.5 - 1.0 * 2.0".chars(),
+            it: "my_var = 4.5 + 1.5 - 1.0 * 2.0 / 5.0".chars(),
         };
 
         assert_eq!(s.next(), Some(Token::Identifier(String::from("my_var"))));
@@ -117,5 +121,7 @@ mod tests {
         assert_eq!(s.next(), Some(Token::Number(String::from("1.0"))));
         assert_eq!(s.next(), Some(Token::Asterisc));
         assert_eq!(s.next(), Some(Token::Number(String::from("2.0"))));
+        assert_eq!(s.next(), Some(Token::Slash));
+        assert_eq!(s.next(), Some(Token::Number(String::from("5.0"))));
     }
 }
