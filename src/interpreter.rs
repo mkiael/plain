@@ -121,7 +121,7 @@ impl<'a> Parser<'a> {
                 right,
             });
         }
-        return Ok(expr);
+        Ok(expr)
     }
 
     fn factor(&mut self) -> ResultExpr {
@@ -135,7 +135,7 @@ impl<'a> Parser<'a> {
                 right,
             });
         }
-        return Ok(expr);
+        Ok(expr)
     }
 
     fn unary(&mut self) -> ResultExpr {
@@ -163,7 +163,7 @@ impl<'a> Parser<'a> {
 
     fn is_next(&self, tokens: &[Token]) -> bool {
         if let Some(token) = self.peek() {
-            tokens.into_iter().any(|t| *t == token)
+            tokens.iter().any(|t| *t == token)
         } else {
             false
         }

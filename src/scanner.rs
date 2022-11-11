@@ -1,4 +1,4 @@
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Token {
     Asterisc,
     Equal,
@@ -29,7 +29,7 @@ impl<'a> Scanner<'a> {
 
     fn consume_number(&mut self) -> Token {
         let s = self.it.as_str();
-        self.skip(|c| is_number(c));
+        self.skip(is_number);
         Token::Number(String::from(&s[..s.len() - self.it.as_str().len()]))
     }
 
