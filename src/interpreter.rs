@@ -37,6 +37,20 @@ fn is_same_value_type(l: &Value, r: &Value) -> bool {
     std::mem::discriminant(l) == std::mem::discriminant(r)
 }
 
+trait Statement {
+    fn execute(&self) -> Result<Value, SyntaxError>;
+}
+
+struct ExpressionStatement {
+    expr: Box<dyn Expression>,
+}
+
+impl Statement for ExpressionStatement {
+    fn execute(&self) -> Result<Value, SyntaxError> {
+        self.expr.eval()
+    }
+}
+
 trait Expression {
     fn eval(&self) -> Result<Value, SyntaxError>;
 }
@@ -96,6 +110,7 @@ impl Expression for LiteralNumber {
     }
 }
 
+type ResultStmt = Result<Box<dyn Statement>, SyntaxError>;
 type ResultExpr = Result<Box<dyn Expression>, SyntaxError>;
 
 struct Parser<'a> {
@@ -107,7 +122,27 @@ impl<'a> Parser<'a> {
         Parser { scanner }
     }
 
-    pub fn parse(&mut self) -> ResultExpr {
+    pub fn parse(&mut self) -> ResultStmt {
+        self.statement()
+    }
+
+    fn statement(&mut self) -> ResultStmt {
+        self.exprstmt()
+    }
+
+    fn exprstmt(&mut self) -> ResultStmt {
+        let expr = self.expression()?;
+        if let Some(token) = self.next_token() {
+            if token != Token::Newline {
+                return Err(SyntaxError::new("Expected newline"));
+            }
+        } else {
+            return Err(SyntaxError::new("Unexpected EOF"));
+        }
+        Ok(Box::new(ExpressionStatement { expr }))
+    }
+
+    fn expression(&mut self) -> ResultExpr {
         self.term()
     }
 
@@ -196,7 +231,7 @@ impl<'a> Parser<'a> {
 
 pub fn interprete(input: &str) -> Result<Value, SyntaxError> {
     let mut parser = Parser::new(Scanner::new(input));
-    parser.parse()?.eval()
+    parser.parse()?.execute()
 }
 
 #[cfg(test)]
@@ -205,7 +240,7 @@ mod tests {
 
     #[test]
     fn interpret_one_literal() {
-        let value = interprete("1234");
+        let value = interprete("1234\n");
 
         match value {
             Ok(v) => assert_eq!(v, Value::Float(1234.0)),
@@ -215,7 +250,7 @@ mod tests {
 
     #[test]
     fn negative_number() {
-        let value = interprete("-3.2");
+        let value = interprete("-3.2\n");
 
         match value {
             Ok(v) => assert_eq!(v, Value::Float(-3.2)),
@@ -225,7 +260,7 @@ mod tests {
 
     #[test]
     fn interpret_addition() {
-        let value = interprete("45 + 101");
+        let value = interprete("45 + 101\n");
 
         match value {
             Ok(v) => assert_eq!(v, Value::Float(146.0)),
@@ -235,7 +270,7 @@ mod tests {
 
     #[test]
     fn interpret_subtraction() {
-        let value = interprete("320 - 25");
+        let value = interprete("320 - 25\n");
 
         match value {
             Ok(v) => assert_eq!(v, Value::Float(295.0)),
@@ -245,7 +280,7 @@ mod tests {
 
     #[test]
     fn interpret_subtraction_negative_number() {
-        let value = interprete("10 - -5");
+        let value = interprete("10 - -5\n");
 
         match value {
             Ok(v) => assert_eq!(v, Value::Float(15.0)),
@@ -255,7 +290,7 @@ mod tests {
 
     #[test]
     fn interpret_addition_with_decimals() {
-        let value = interprete("9.95 + 10.08");
+        let value = interprete("9.95 + 10.08\n");
 
         match value {
             Ok(v) => assert_eq!(v, Value::Float(20.03)),
@@ -265,7 +300,7 @@ mod tests {
 
     #[test]
     fn interpret_multiple_factors() {
-        let value = interprete("0.5 + 3 + 86.8 + 1000.0 + -500.0");
+        let value = interprete("0.5 + 3 + 86.8 + 1000.0 + -500.0\n");
 
         match value {
             Ok(v) => assert_eq!(v, Value::Float(590.3)),
@@ -285,7 +320,7 @@ mod tests {
 
     #[test]
     fn multiplication() {
-        let value = interprete("3 * 2 + 1");
+        let value = interprete("3 * 2 + 1\n");
 
         match value {
             Ok(v) => assert_eq!(v, Value::Float(7.0)),
@@ -295,7 +330,7 @@ mod tests {
 
     #[test]
     fn division() {
-        let value = interprete("3 / 2 + 1");
+        let value = interprete("3 / 2 + 1\n");
 
         match value {
             Ok(v) => assert_eq!(v, Value::Float(2.5)),
@@ -305,7 +340,7 @@ mod tests {
 
     #[test]
     fn arithmetic_precedence() {
-        let value = interprete("3 + 5 / 2 * 3 + 1");
+        let value = interprete("3 + 5 / 2 * 3 + 1\n");
 
         match value {
             Ok(v) => assert_eq!(v, Value::Float(11.5)),
@@ -315,7 +350,7 @@ mod tests {
 
     #[test]
     fn grouping() {
-        let value = interprete("(12 + 4) * (10 - 8)");
+        let value = interprete("(12 + 4) * (10 - 8)\n");
 
         match value {
             Ok(v) => assert_eq!(v, Value::Float(32.0)),
@@ -325,7 +360,7 @@ mod tests {
 
     #[test]
     fn nested_groups() {
-        let value = interprete("(1 * ((1) + 2)) * (((1 - 1) * 100) + 2)");
+        let value = interprete("(1 * ((1) + 2)) * (((1 - 1) * 100) + 2)\n");
 
         match value {
             Ok(v) => assert_eq!(v, Value::Float(6.0)),
