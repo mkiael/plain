@@ -5,6 +5,7 @@ pub enum Token {
     Minus,
     Plus,
     Slash,
+    Newline,
 
     LeftParen,
     RightParen,
@@ -49,7 +50,7 @@ impl<'a> Iterator for Scanner<'a> {
     type Item = Token;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.skip(|c| c.is_ascii_whitespace());
+        self.skip(is_whitespace);
         if let Some(c) = self.it.clone().next() {
             if c.is_ascii_digit() {
                 Some(self.consume_number())
@@ -70,6 +71,9 @@ impl<'a> Iterator for Scanner<'a> {
             } else if c == '/' {
                 self.it.next();
                 Some(Token::Slash)
+            } else if c == '\n' {
+                self.it.next();
+                Some(Token::Newline)
             } else if c == '(' {
                 self.it.next();
                 Some(Token::LeftParen)
@@ -87,6 +91,10 @@ impl<'a> Iterator for Scanner<'a> {
 
 fn is_number(c: char) -> bool {
     c.is_ascii_digit() || c == '.'
+}
+
+fn is_whitespace(c: char) -> bool {
+    matches!(c, ' ' | '\t' | '\r' | '\x0C')
 }
 
 #[cfg(test)]
