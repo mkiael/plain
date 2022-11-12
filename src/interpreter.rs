@@ -156,9 +156,24 @@ impl<'a> Parser<'a> {
                 Token::Number(n) => Ok(Box::new(LiteralNumber {
                     value: Value::Float(n.parse::<f64>().unwrap()),
                 })),
+                Token::LeftParen => {
+                    let expr = self.term()?;
+                    match self.next_token() {
+                        Some(token) => {
+                            if token == Token::RightParen {
+                                Ok(expr)
+                            } else {
+                                Err(SyntaxError::new("Missing closing parenthesis"))
+                            }
+                        }
+                        _ => Err(SyntaxError::new(
+                            "Missing closing parenthesis, unexpected EOF",
+                        )),
+                    }
+                }
                 _ => Err(SyntaxError::new("Invalid primary token")),
             },
-            _ => Err(SyntaxError::new("Unexptected EOF")),
+            _ => Err(SyntaxError::new("Unexpected EOF")),
         }
     }
 
@@ -295,6 +310,56 @@ mod tests {
         match value {
             Ok(v) => assert_eq!(v, Value::Float(11.5)),
             _ => assert!(false),
+        }
+    }
+
+    #[test]
+    fn grouping() {
+        let value = interprete("(12 + 4) * (10 - 8)");
+
+        match value {
+            Ok(v) => assert_eq!(v, Value::Float(32.0)),
+            _ => assert!(false),
+        }
+    }
+
+    #[test]
+    fn nested_groups() {
+        let value = interprete("(1 * ((1) + 2)) * (((1 - 1) * 100) + 2)");
+
+        match value {
+            Ok(v) => assert_eq!(v, Value::Float(6.0)),
+            _ => assert!(false),
+        }
+    }
+
+    #[test]
+    fn no_expression_after_open_paren() {
+        let value = interprete("(");
+
+        match value {
+            Ok(_) => assert!(false),
+            Err(e) => assert_eq!("Unexpected EOF", e.what),
+        }
+    }
+
+    #[test]
+    fn missing_closing_paren() {
+        let value = interprete("(1 + 1(");
+
+        match value {
+            Ok(_) => assert!(false),
+            Err(e) => assert_eq!("Missing closing parenthesis", e.what),
+        }
+    }
+
+    #[test]
+    fn missing_closing_paren_at_eof() {
+        let value = interprete("(1 + 1");
+
+        match value {
+            Ok(_) => assert!(false),
+            Err(e) => assert_eq!("Missing closing parenthesis, unexpected EOF", e.what),
         }
     }
 }
