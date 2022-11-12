@@ -5,6 +5,10 @@ pub enum Token {
     Minus,
     Plus,
     Slash,
+
+    LeftParen,
+    RightParen,
+
     Identifier(String),
     Number(String),
 }
@@ -66,6 +70,12 @@ impl<'a> Iterator for Scanner<'a> {
             } else if c == '/' {
                 self.it.next();
                 Some(Token::Slash)
+            } else if c == '(' {
+                self.it.next();
+                Some(Token::LeftParen)
+            } else if c == ')' {
+                self.it.next();
+                Some(Token::RightParen)
             } else {
                 None
             }
@@ -123,5 +133,18 @@ mod tests {
         assert_eq!(s.next(), Some(Token::Number(String::from("2.0"))));
         assert_eq!(s.next(), Some(Token::Slash));
         assert_eq!(s.next(), Some(Token::Number(String::from("5.0"))));
+    }
+
+    #[test]
+    fn scan_parenthesis() {
+        let mut s = Scanner {
+            it: "(1 + 3)".chars(),
+        };
+
+        assert_eq!(s.next(), Some(Token::LeftParen));
+        assert_eq!(s.next(), Some(Token::Number(String::from("1"))));
+        assert_eq!(s.next(), Some(Token::Plus));
+        assert_eq!(s.next(), Some(Token::Number(String::from("3"))));
+        assert_eq!(s.next(), Some(Token::RightParen));
     }
 }
