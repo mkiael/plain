@@ -37,17 +37,13 @@ fn is_same_value_type(l: &Value, r: &Value) -> bool {
     std::mem::discriminant(l) == std::mem::discriminant(r)
 }
 
-trait Statement {
-    fn execute(&self) -> Result<Value, SyntaxError>;
+enum Stmt {
+    Expr { expr: Expr },
 }
 
-struct ExpressionStatement {
-    expr: Expr,
-}
-
-impl Statement for ExpressionStatement {
-    fn execute(&self) -> Result<Value, SyntaxError> {
-        evaluate(&self.expr)
+fn execute(stmt: &Stmt) -> Result<Value, SyntaxError> {
+    match stmt {
+        Stmt::Expr { expr } => evaluate(expr),
     }
 }
 
@@ -104,7 +100,7 @@ fn evaluate(expr: &Expr) -> Result<Value, SyntaxError> {
     }
 }
 
-type ResultStmt = Result<Box<dyn Statement>, SyntaxError>;
+type ResultStmt = Result<Stmt, SyntaxError>;
 type ResultExpr = Result<Expr, SyntaxError>;
 
 struct Parser<'a> {
@@ -133,7 +129,7 @@ impl<'a> Parser<'a> {
         } else {
             return Err(SyntaxError::new("Unexpected EOF"));
         }
-        Ok(Box::new(ExpressionStatement { expr }))
+        Ok(Stmt::Expr { expr })
     }
 
     fn expression(&mut self) -> ResultExpr {
@@ -225,7 +221,7 @@ impl<'a> Parser<'a> {
 
 pub fn interprete(input: &str) -> Result<Value, SyntaxError> {
     let mut parser = Parser::new(Scanner::new(input));
-    parser.parse()?.execute()
+    execute(&parser.parse()?)
 }
 
 #[cfg(test)]
