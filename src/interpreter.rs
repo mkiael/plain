@@ -42,76 +42,70 @@ trait Statement {
 }
 
 struct ExpressionStatement {
-    expr: Box<dyn Expression>,
+    expr: Expr,
 }
 
 impl Statement for ExpressionStatement {
     fn execute(&self) -> Result<Value, SyntaxError> {
-        self.expr.eval()
+        evaluate(&self.expr)
     }
 }
 
-trait Expression {
-    fn eval(&self) -> Result<Value, SyntaxError>;
+enum Expr {
+    Binary {
+        operator: Token,
+        left: Box<Expr>,
+        right: Box<Expr>,
+    },
+    Unary {
+        operator: Token,
+        right: Box<Expr>,
+    },
+    LiteralNumber {
+        value: Value,
+    },
 }
 
-struct BinaryExpr {
-    left: Box<dyn Expression>,
-    operator: Token,
-    right: Box<dyn Expression>,
-}
-
-impl Expression for BinaryExpr {
-    fn eval(&self) -> Result<Value, SyntaxError> {
-        let left_value = self.left.eval()?;
-        let right_value = self.right.eval()?;
-        if is_same_value_type(&left_value, &right_value) {
-            match left_value {
-                Value::Float(lf) => match right_value {
-                    Value::Float(rf) => match self.operator {
-                        Token::Asterisc => Ok(Value::Float(lf * rf)),
-                        Token::Plus => Ok(Value::Float(lf + rf)),
-                        Token::Minus => Ok(Value::Float(lf - rf)),
-                        Token::Slash => Ok(Value::Float(lf / rf)),
-                        _ => Err(SyntaxError::new("Unsupported operator")),
+fn evaluate(expr: &Expr) -> Result<Value, SyntaxError> {
+    match expr {
+        Expr::Binary {
+            operator,
+            left,
+            right,
+        } => {
+            let left_value = evaluate(left)?;
+            let right_value = evaluate(right)?;
+            if is_same_value_type(&left_value, &right_value) {
+                match left_value {
+                    Value::Float(lf) => match right_value {
+                        Value::Float(rf) => match operator {
+                            Token::Asterisc => Ok(Value::Float(lf * rf)),
+                            Token::Plus => Ok(Value::Float(lf + rf)),
+                            Token::Minus => Ok(Value::Float(lf - rf)),
+                            Token::Slash => Ok(Value::Float(lf / rf)),
+                            _ => Err(SyntaxError::new("Unsupported operator")),
+                        },
                     },
-                },
+                }
+            } else {
+                Err(SyntaxError::new("Type mismatch in binary expression"))
             }
-        } else {
-            Err(SyntaxError::new("Type mismatch in binary expression"))
         }
-    }
-}
-
-struct UnaryExpression {
-    operator: Token,
-    right: Box<dyn Expression>,
-}
-
-impl Expression for UnaryExpression {
-    fn eval(&self) -> Result<Value, SyntaxError> {
-        let right_value = self.right.eval()?;
-        match self.operator {
-            Token::Minus => match right_value {
-                Value::Float(rf) => Ok(Value::Float(-rf)),
-            },
-            _ => Err(SyntaxError::new("Invalid unary operator")),
+        Expr::Unary { operator, right } => {
+            let right_value = evaluate(right)?;
+            match operator {
+                Token::Minus => match right_value {
+                    Value::Float(rf) => Ok(Value::Float(-rf)),
+                },
+                _ => Err(SyntaxError::new("Invalid unary operator")),
+            }
         }
-    }
-}
-
-struct LiteralNumber {
-    value: Value,
-}
-
-impl Expression for LiteralNumber {
-    fn eval(&self) -> Result<Value, SyntaxError> {
-        Ok(self.value.clone())
+        Expr::LiteralNumber { value } => Ok(value.clone()),
     }
 }
 
 type ResultStmt = Result<Box<dyn Statement>, SyntaxError>;
-type ResultExpr = Result<Box<dyn Expression>, SyntaxError>;
+type ResultExpr = Result<Expr, SyntaxError>;
 
 struct Parser<'a> {
     pub scanner: Scanner<'a>,
@@ -151,11 +145,11 @@ impl<'a> Parser<'a> {
         while self.is_next(&[Token::Plus, Token::Minus]) {
             let op = self.next_token().unwrap();
             let right = self.factor()?;
-            expr = Box::new(BinaryExpr {
-                left: expr,
+            expr = Expr::Binary {
                 operator: op,
-                right,
-            });
+                left: Box::new(expr),
+                right: Box::new(right),
+            };
         }
         Ok(expr)
     }
@@ -165,21 +159,21 @@ impl<'a> Parser<'a> {
         while self.is_next(&[Token::Asterisc, Token::Slash]) {
             let op = self.next_token().unwrap();
             let right = self.unary()?;
-            expr = Box::new(BinaryExpr {
-                left: expr,
+            expr = Expr::Binary {
                 operator: op,
-                right,
-            });
+                left: Box::new(expr),
+                right: Box::new(right),
+            };
         }
         Ok(expr)
     }
 
     fn unary(&mut self) -> ResultExpr {
         if self.is_next(&[Token::Minus]) {
-            Ok(Box::new(UnaryExpression {
+            Ok(Expr::Unary {
                 operator: self.next_token().unwrap(),
-                right: self.primary()?,
-            }))
+                right: Box::new(self.primary()?),
+            })
         } else {
             Ok(self.primary()?)
         }
@@ -188,9 +182,9 @@ impl<'a> Parser<'a> {
     fn primary(&mut self) -> ResultExpr {
         match self.next_token() {
             Some(token) => match token {
-                Token::Number(n) => Ok(Box::new(LiteralNumber {
+                Token::Number(n) => Ok(Expr::LiteralNumber {
                     value: Value::Float(n.parse::<f64>().unwrap()),
-                })),
+                }),
                 Token::LeftParen => {
                     let expr = self.term()?;
                     match self.next_token() {
