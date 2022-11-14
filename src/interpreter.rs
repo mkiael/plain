@@ -1,5 +1,6 @@
 use crate::scanner::{Scanner, Token};
 
+use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
 
@@ -37,13 +38,35 @@ fn is_same_value_type(l: &Value, r: &Value) -> bool {
     std::mem::discriminant(l) == std::mem::discriminant(r)
 }
 
+struct Environment {
+    variables: HashMap<String, Value>,
+}
+
+impl Environment {
+    fn new() -> Self {
+        Environment { variables: HashMap::new() }
+    }
+
+    fn define(&mut self, name: &str, value: Value) -> bool {
+        if !self.variables.contains_key(name) {
+            self.variables.insert(name.to_string(), value) == None
+        } else {
+            false
+        }
+    }
+
+    fn get(&self, name: &str) -> Option<&Value> {
+        self.variables.get(name)
+    }
+}
+
 enum Stmt {
     Expr { expr: Expr },
 }
 
-fn execute(stmt: &Stmt) -> Result<Value, SyntaxError> {
+fn execute(stmt: &Stmt, env: &mut Environment) -> Result<Value, SyntaxError> {
     match stmt {
-        Stmt::Expr { expr } => evaluate(expr),
+        Stmt::Expr { expr } => evaluate(expr, env),
     }
 }
 
@@ -62,15 +85,15 @@ enum Expr {
     },
 }
 
-fn evaluate(expr: &Expr) -> Result<Value, SyntaxError> {
+fn evaluate(expr: &Expr, env: &mut Environment) -> Result<Value, SyntaxError> {
     match expr {
         Expr::Binary {
             operator,
             left,
             right,
         } => {
-            let left_value = evaluate(left)?;
-            let right_value = evaluate(right)?;
+            let left_value = evaluate(left, env)?;
+            let right_value = evaluate(right, env)?;
             if is_same_value_type(&left_value, &right_value) {
                 match left_value {
                     Value::Float(lf) => match right_value {
@@ -88,7 +111,7 @@ fn evaluate(expr: &Expr) -> Result<Value, SyntaxError> {
             }
         }
         Expr::Unary { operator, right } => {
-            let right_value = evaluate(right)?;
+            let right_value = evaluate(right, env)?;
             match operator {
                 Token::Minus => match right_value {
                     Value::Float(rf) => Ok(Value::Float(-rf)),
@@ -221,7 +244,8 @@ impl<'a> Parser<'a> {
 
 pub fn interprete(input: &str) -> Result<Value, SyntaxError> {
     let mut parser = Parser::new(Scanner::new(input));
-    execute(&parser.parse()?)
+    let mut env = Environment::new();
+    execute(&parser.parse()?, &mut env)
 }
 
 #[cfg(test)]
@@ -386,5 +410,14 @@ mod tests {
             Ok(_) => assert!(false),
             Err(e) => assert_eq!("Missing closing parenthesis, unexpected EOF", e.what),
         }
+    }
+
+    #[test]
+    fn define_variable() {
+        let mut env = Environment::new();
+
+        env.define("foo", Value::Float(2.3));
+
+        assert_eq!(env.get("foo"), Some(&Value::Float(2.3)));
     }
 }
