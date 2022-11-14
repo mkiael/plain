@@ -10,6 +10,8 @@ pub enum Token {
     LeftParen,
     RightParen,
 
+    Let,
+
     Identifier(String),
     Number(String),
 }
@@ -42,7 +44,11 @@ impl<'a> Scanner<'a> {
     fn consume_identifier(&mut self) -> Token {
         let s = self.it.as_str();
         self.skip(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
-        Token::Identifier(String::from(&s[..s.len() - self.it.as_str().len()]))
+        let ident = &s[..s.len() - self.it.as_str().len()];
+        match ident {
+            "let" => Token::Let,
+            _ => Token::Identifier(ident.to_string()),
+        }
     }
 }
 
@@ -154,5 +160,17 @@ mod tests {
         assert_eq!(s.next(), Some(Token::Plus));
         assert_eq!(s.next(), Some(Token::Number(String::from("3"))));
         assert_eq!(s.next(), Some(Token::RightParen));
+    }
+
+    #[test]
+    fn scan_let_keyword() {
+        let mut s = Scanner {
+            it: "let foo = 3".chars(),
+        };
+
+        assert_eq!(s.next(), Some(Token::Let));
+        assert_eq!(s.next(), Some(Token::Identifier(String::from("foo"))));
+        assert_eq!(s.next(), Some(Token::Equal));
+        assert_eq!(s.next(), Some(Token::Number(String::from("3"))));
     }
 }
