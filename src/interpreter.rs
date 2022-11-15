@@ -29,7 +29,7 @@ impl Error for SyntaxError {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Value {
     Float(f64),
 }
@@ -44,7 +44,9 @@ struct Environment {
 
 impl Environment {
     fn new() -> Self {
-        Environment { variables: HashMap::new() }
+        Environment {
+            variables: HashMap::new(),
+        }
     }
 
     fn define(&mut self, name: &str, value: Value) -> bool {
@@ -62,11 +64,22 @@ impl Environment {
 
 enum Stmt {
     Expr { expr: Expr },
+    VarDecl { name: String, expr: Expr },
 }
 
 fn execute(stmt: &Stmt, env: &mut Environment) -> Result<Value, SyntaxError> {
     match stmt {
         Stmt::Expr { expr } => evaluate(expr, env),
+        Stmt::VarDecl { name, expr } => {
+            let value = evaluate(expr, env)?;
+            if env.define(name, value) {
+                Ok(value)
+            } else {
+                Err(SyntaxError::new(&format!(
+                    "Variable {name} is already defined"
+                )))
+            }
+        }
     }
 }
 
@@ -82,6 +95,9 @@ enum Expr {
     },
     LiteralNumber {
         value: Value,
+    },
+    Variable {
+        name: String,
     },
 }
 
@@ -119,7 +135,11 @@ fn evaluate(expr: &Expr, env: &mut Environment) -> Result<Value, SyntaxError> {
                 _ => Err(SyntaxError::new("Invalid unary operator")),
             }
         }
-        Expr::LiteralNumber { value } => Ok(value.clone()),
+        Expr::LiteralNumber { value } => Ok(*value),
+        Expr::Variable { name } => match env.get(name) {
+            Some(value) => Ok(*value),
+            _ => Err(SyntaxError::new(&format!("Variable {name} is not defined"))),
+        },
     }
 }
 
@@ -136,7 +156,31 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse(&mut self) -> ResultStmt {
-        self.statement()
+        self.variable_decl()
+    }
+
+    fn variable_decl(&mut self) -> ResultStmt {
+        if self.is_next(&[Token::Let]) {
+            self.next_token();
+            match self.next_token() {
+                Some(Token::Identifier(name)) => match self.next_token() {
+                    Some(Token::Equal) => {
+                        let var_decl = Stmt::VarDecl {
+                            name,
+                            expr: self.expression()?,
+                        };
+                        match self.next_token() {
+                            Some(Token::Newline) => Ok(var_decl),
+                            _ => Err(SyntaxError::new("Expected newline after declaration")),
+                        }
+                    }
+                    _ => Err(SyntaxError::new("Expected equal sign after identifier")),
+                },
+                _ => Err(SyntaxError::new("Expected identifier")),
+            }
+        } else {
+            self.statement()
+        }
     }
 
     fn statement(&mut self) -> ResultStmt {
@@ -201,6 +245,7 @@ impl<'a> Parser<'a> {
     fn primary(&mut self) -> ResultExpr {
         match self.next_token() {
             Some(token) => match token {
+                Token::Identifier(name) => Ok(Expr::Variable { name }),
                 Token::Number(n) => Ok(Expr::LiteralNumber {
                     value: Value::Float(n.parse::<f64>().unwrap()),
                 }),
@@ -324,12 +369,9 @@ mod tests {
 
     #[test]
     fn add_number_with_identifier() {
-        let value = interprete("1.5 + foo");
+        let value = interprete("1.5 + foo\n");
 
-        match value {
-            Ok(_) => assert!(false),
-            Err(e) => assert_eq!("Invalid primary token", e.what),
-        }
+        assert_eq!(value.unwrap_err().what, "Variable foo is not defined")
     }
 
     #[test]
@@ -419,5 +461,46 @@ mod tests {
         env.define("foo", Value::Float(2.3));
 
         assert_eq!(env.get("foo"), Some(&Value::Float(2.3)));
+    }
+
+    #[test]
+    fn declare_float_variable() {
+        let value = interprete("let foo = 310.5\n");
+
+        assert_eq!(value.unwrap(), Value::Float(310.5));
+    }
+
+    #[test]
+    fn declare_float_variable_with_complex_expression() {
+        let value = interprete("let foo = 1.0 + (310.5 + 0.5) * 2\n");
+
+        assert_eq!(value.unwrap(), Value::Float(623.0));
+    }
+
+    #[test]
+    fn invalid_variable_declaration_no_identifier() {
+        let value = interprete("let 3.14\n");
+
+        assert_eq!(value.unwrap_err().what, "Expected identifier");
+    }
+
+    #[test]
+    fn invalid_variable_declaration_no_equal_sign() {
+        let value = interprete("let foo\n");
+
+        assert_eq!(
+            value.unwrap_err().what,
+            "Expected equal sign after identifier"
+        );
+    }
+
+    #[test]
+    fn invalid_variable_declaration_no_newline() {
+        let value = interprete("let foo = 123");
+
+        assert_eq!(
+            value.unwrap_err().what,
+            "Expected newline after declaration"
+        );
     }
 }
