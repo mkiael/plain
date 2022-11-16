@@ -287,10 +287,26 @@ impl<'a> Parser<'a> {
     }
 }
 
+impl<'a> Iterator for Parser<'a> {
+    type Item = ResultStmt;
+
+    fn next(&mut self) -> Option<ResultStmt> {
+        if self.peek() == None {
+            None
+        } else {
+            Some(self.parse())
+        }
+    }
+}
+
 pub fn interprete(input: &str) -> Result<Value, SyntaxError> {
-    let mut parser = Parser::new(Scanner::new(input));
+    let parser = Parser::new(Scanner::new(input));
     let mut env = Environment::new();
-    execute(&parser.parse()?, &mut env)
+    let mut last_value = Value::Float(0.0);
+    for stmt in parser {
+        last_value = execute(&stmt?, &mut env)?;
+    }
+    Ok(last_value)
 }
 
 #[cfg(test)]
@@ -471,6 +487,13 @@ mod tests {
     }
 
     #[test]
+    fn declare_variable_with_other_variable() {
+        let value = interprete("let foo = 3\nlet bar = foo * foo - 1\n");
+
+        assert_eq!(value.unwrap(), Value::Float(8.0));
+    }
+
+    #[test]
     fn declare_float_variable_with_complex_expression() {
         let value = interprete("let foo = 1.0 + (310.5 + 0.5) * 2\n");
 
@@ -502,5 +525,12 @@ mod tests {
             value.unwrap_err().what,
             "Expected newline after declaration"
         );
+    }
+
+    #[test]
+    fn variable_already_defined() {
+        let value = interprete("let foo = 123\nlet foo = 321\n");
+
+        assert_eq!(value.unwrap_err().what, "Variable foo is already defined");
     }
 }
