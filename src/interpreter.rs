@@ -389,70 +389,49 @@ mod tests {
     fn interpret_one_literal() {
         let value = interprete("1234\n");
 
-        match value {
-            Ok(v) => assert_eq!(v, Value::Float(1234.0)),
-            _ => assert!(false),
-        }
+        assert_eq!(value.unwrap(), Value::Float(1234.0));
     }
 
     #[test]
     fn negative_number() {
         let value = interprete("-3.2\n");
 
-        match value {
-            Ok(v) => assert_eq!(v, Value::Float(-3.2)),
-            _ => assert!(false),
-        }
+        assert_eq!(value.unwrap(), Value::Float(-3.2));
     }
 
     #[test]
     fn interpret_addition() {
         let value = interprete("45 + 101\n");
 
-        match value {
-            Ok(v) => assert_eq!(v, Value::Float(146.0)),
-            _ => assert!(false),
-        }
+        assert_eq!(value.unwrap(), Value::Float(146.0));
     }
 
     #[test]
     fn interpret_subtraction() {
         let value = interprete("320 - 25\n");
 
-        match value {
-            Ok(v) => assert_eq!(v, Value::Float(295.0)),
-            _ => assert!(false),
-        }
+        assert_eq!(value.unwrap(), Value::Float(295.0));
     }
 
     #[test]
     fn interpret_subtraction_negative_number() {
         let value = interprete("10 - -5\n");
 
-        match value {
-            Ok(v) => assert_eq!(v, Value::Float(15.0)),
-            _ => assert!(false),
-        }
+        assert_eq!(value.unwrap(), Value::Float(15.0));
     }
 
     #[test]
     fn interpret_addition_with_decimals() {
         let value = interprete("9.95 + 10.08\n");
 
-        match value {
-            Ok(v) => assert_eq!(v, Value::Float(20.03)),
-            _ => assert!(false),
-        }
+        assert_eq!(value.unwrap(), Value::Float(20.03));
     }
 
     #[test]
     fn interpret_multiple_factors() {
         let value = interprete("0.5 + 3 + 86.8 + 1000.0 + -500.0\n");
 
-        match value {
-            Ok(v) => assert_eq!(v, Value::Float(590.3)),
-            _ => assert!(false),
-        }
+        assert_eq!(value.unwrap(), Value::Float(590.3));
     }
 
     #[test]
@@ -466,50 +445,35 @@ mod tests {
     fn multiplication() {
         let value = interprete("3 * 2 + 1\n");
 
-        match value {
-            Ok(v) => assert_eq!(v, Value::Float(7.0)),
-            _ => assert!(false),
-        }
+        assert_eq!(value.unwrap(), Value::Float(7.0));
     }
 
     #[test]
     fn division() {
         let value = interprete("3 / 2 + 1\n");
 
-        match value {
-            Ok(v) => assert_eq!(v, Value::Float(2.5)),
-            _ => assert!(false),
-        }
+        assert_eq!(value.unwrap(), Value::Float(2.5));
     }
 
     #[test]
     fn arithmetic_precedence() {
         let value = interprete("3 + 5 / 2 * 3 + 1\n");
 
-        match value {
-            Ok(v) => assert_eq!(v, Value::Float(11.5)),
-            _ => assert!(false),
-        }
+        assert_eq!(value.unwrap(), Value::Float(11.5));
     }
 
     #[test]
     fn grouping() {
         let value = interprete("(12 + 4) * (10 - 8)\n");
 
-        match value {
-            Ok(v) => assert_eq!(v, Value::Float(32.0)),
-            _ => assert!(false),
-        }
+        assert_eq!(value.unwrap(), Value::Float(32.0));
     }
 
     #[test]
     fn nested_groups() {
         let value = interprete("(1 * ((1) + 2)) * (((1 - 1) * 100) + 2)\n");
 
-        match value {
-            Ok(v) => assert_eq!(v, Value::Float(6.0)),
-            _ => assert!(false),
-        }
+        assert_eq!(value.unwrap(), Value::Float(6.0));
     }
 
     #[test]
@@ -533,10 +497,10 @@ mod tests {
     fn missing_closing_paren_at_eof() {
         let value = interprete("(1 + 1");
 
-        match value {
-            Ok(_) => assert!(false),
-            Err(e) => assert_eq!("Missing closing parenthesis, unexpected EOF", e.what),
-        }
+        assert_eq!(
+            value.unwrap_err().what,
+            "Missing closing parenthesis, unexpected EOF"
+        );
     }
 
     #[test]
