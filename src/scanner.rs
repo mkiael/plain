@@ -6,6 +6,7 @@ pub enum Token {
     Plus,
     Slash,
     Newline,
+    Comma,
 
     LeftParen,
     RightParen,
@@ -80,6 +81,9 @@ impl<'a> Iterator for Scanner<'a> {
             } else if c == '\n' {
                 self.it.next();
                 Some(Token::Newline)
+            } else if c == ',' {
+                self.it.next();
+                Some(Token::Comma)
             } else if c == '(' {
                 self.it.next();
                 Some(Token::LeftParen)
@@ -172,5 +176,19 @@ mod tests {
         assert_eq!(s.next(), Some(Token::Identifier(String::from("foo"))));
         assert_eq!(s.next(), Some(Token::Equal));
         assert_eq!(s.next(), Some(Token::Number(String::from("3"))));
+    }
+
+    #[test]
+    fn scan_function_call() {
+        let mut s = Scanner {
+            it: "foo(1, 2)".chars(),
+        };
+
+        assert_eq!(s.next(), Some(Token::Identifier(String::from("foo"))));
+        assert_eq!(s.next(), Some(Token::LeftParen));
+        assert_eq!(s.next(), Some(Token::Number(String::from("1"))));
+        assert_eq!(s.next(), Some(Token::Comma));
+        assert_eq!(s.next(), Some(Token::Number(String::from("2"))));
+        assert_eq!(s.next(), Some(Token::RightParen));
     }
 }
