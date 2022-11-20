@@ -32,6 +32,9 @@ impl Error for SyntaxError {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Value {
     Float(f64),
+
+    #[allow(dead_code)]
+    Callable(fn(Vec<Value>) -> Value),
 }
 
 fn is_same_value_type(l: &Value, r: &Value) -> bool {
@@ -93,6 +96,10 @@ enum Expr {
         operator: Token,
         right: Box<Expr>,
     },
+    Call {
+        callee: Box<Expr>,
+        args: Vec<Expr>,
+    },
     LiteralNumber {
         value: Value,
     },
@@ -120,7 +127,9 @@ fn evaluate(expr: &Expr, env: &mut Environment) -> Result<Value, SyntaxError> {
                             Token::Slash => Ok(Value::Float(lf / rf)),
                             _ => Err(SyntaxError::new("Unsupported operator")),
                         },
+                        _ => Err(SyntaxError::new("Invalid binary operands")),
                     },
+                    _ => Err(SyntaxError::new("Invalid binary operands")),
                 }
             } else {
                 Err(SyntaxError::new("Type mismatch in binary expression"))
@@ -131,10 +140,18 @@ fn evaluate(expr: &Expr, env: &mut Environment) -> Result<Value, SyntaxError> {
             match operator {
                 Token::Minus => match right_value {
                     Value::Float(rf) => Ok(Value::Float(-rf)),
+                    _ => Err(SyntaxError::new("Invalid unary operand")),
                 },
                 _ => Err(SyntaxError::new("Invalid unary operator")),
             }
         }
+        Expr::Call { callee, args } => match evaluate(callee, env)? {
+            Value::Callable(f) => Ok(f(args
+                .iter()
+                .map(|arg| evaluate(arg, env).unwrap())
+                .collect())),
+            _ => Err(SyntaxError::new("Expression not callable")),
+        },
         Expr::LiteralNumber { value } => Ok(*value),
         Expr::Variable { name } => match env.get(name) {
             Some(value) => Ok(*value),
@@ -238,8 +255,39 @@ impl<'a> Parser<'a> {
                 right: Box::new(self.primary()?),
             })
         } else {
-            Ok(self.primary()?)
+            self.call()
         }
+    }
+
+    fn call(&mut self) -> ResultExpr {
+        let mut expr = self.primary()?;
+        loop {
+            if self.peek() == Some(Token::LeftParen) {
+                self.next_token();
+                let mut args: Vec<Expr> = Vec::new();
+                if self.peek() != Some(Token::RightParen) {
+                    loop {
+                        args.push(self.expression()?);
+                        if self.peek() == Some(Token::Comma) {
+                            self.next_token();
+                        } else {
+                            break;
+                        }
+                    }
+                }
+                if self.next_token() == Some(Token::RightParen) {
+                    expr = Expr::Call {
+                        callee: Box::new(expr),
+                        args,
+                    };
+                } else {
+                    return Err(SyntaxError::new("Expected closing parenthesis"));
+                }
+            } else {
+                break;
+            }
+        }
+        Ok(expr)
     }
 
     fn primary(&mut self) -> ResultExpr {
@@ -309,9 +357,33 @@ pub fn interprete(input: &str) -> Result<Value, SyntaxError> {
     Ok(last_value)
 }
 
+// TODO(mkiael): Remove this function when interpreter is more complete
+#[allow(dead_code)]
+fn interprete_with_env(input: &str, env: &mut Environment) -> Result<Value, SyntaxError> {
+    let parser = Parser::new(Scanner::new(input));
+    let mut last_value = Value::Float(0.0);
+    for stmt in parser {
+        last_value = execute(&stmt?, env)?;
+    }
+    Ok(last_value)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn add_floats(values: Vec<Value>) -> Value {
+        Value::Float(
+            values
+                .into_iter()
+                .map(|v| match v {
+                    Value::Float(f) => f,
+                    _ => panic!(),
+                })
+                .reduce(|acc, f| acc + f)
+                .unwrap(),
+        )
+    }
 
     #[test]
     fn interpret_one_literal() {
@@ -454,10 +526,7 @@ mod tests {
     fn missing_closing_paren() {
         let value = interprete("(1 + 1(");
 
-        match value {
-            Ok(_) => assert!(false),
-            Err(e) => assert_eq!("Missing closing parenthesis", e.what),
-        }
+        assert_eq!(value.unwrap_err().what, "Unexpected EOF");
     }
 
     #[test]
@@ -532,5 +601,62 @@ mod tests {
         let value = interprete("let foo = 123\nlet foo = 321\n");
 
         assert_eq!(value.unwrap_err().what, "Variable foo is already defined");
+    }
+
+    #[test]
+    fn call_function() {
+        let mut env = Environment::new();
+        env.define("foo", Value::Callable(|_args| Value::Float(928.0)));
+
+        let value = interprete_with_env("foo()\n", &mut env);
+
+        assert_eq!(value.unwrap(), Value::Float(928.0));
+    }
+
+    #[test]
+    fn call_function_with_one_argument() {
+        let mut env = Environment::new();
+        env.define("foo", Value::Callable(|args| *args.first().unwrap()));
+
+        let value = interprete_with_env("foo(5)\n", &mut env);
+
+        assert_eq!(value.unwrap(), Value::Float(5.0));
+    }
+
+    #[test]
+    fn call_function_with_multiple_arguments() {
+        let mut env = Environment::new();
+        env.define("foo", Value::Callable(|args| add_floats(args)));
+
+        let value = interprete_with_env("foo(5 + 3, (1 + 1) * 3)\n", &mut env);
+
+        assert_eq!(value.unwrap(), Value::Float(14.0));
+    }
+
+    #[test]
+    fn call_function_with_function_call_as_argument() {
+        let mut env = Environment::new();
+
+        let callable = Value::Callable(|args| add_floats(args));
+        env.define("foo", callable);
+        env.define("bar", callable);
+
+        let value = interprete_with_env("foo(bar(2, 3), bar(6, 5))\n", &mut env);
+
+        assert_eq!(value.unwrap(), Value::Float(16.0));
+    }
+
+    #[test]
+    fn call_function_with_variable_as_argument() {
+        let mut env = Environment::new();
+
+        let callable = Value::Callable(|args| add_floats(args));
+        env.define("foo", callable);
+        env.define("bar", Value::Float(12.0));
+        env.define("baz", Value::Float(8.0));
+
+        let value = interprete_with_env("foo(bar, baz / 2 + 1)\n", &mut env);
+
+        assert_eq!(value.unwrap(), Value::Float(17.0));
     }
 }
