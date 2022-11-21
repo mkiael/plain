@@ -1,32 +1,48 @@
 use crate::scanner::{Scanner, Token};
 
 use std::collections::HashMap;
-use std::error::Error;
-use std::fmt;
+use thiserror::Error;
 
-#[derive(Debug)]
-pub struct SyntaxError {
-    what: String,
-}
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum SyntaxError {
+    #[error("Variable '{0}' already defined")]
+    VariableAlreadyDefined(String),
 
-impl SyntaxError {
-    fn new(what: &str) -> Self {
-        SyntaxError {
-            what: what.to_string(),
-        }
-    }
-}
+    #[error("Variable '{0}' is not defined")]
+    VariableNotDefined(String),
 
-impl fmt::Display for SyntaxError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.what)
-    }
-}
+    #[error("Operator not supported")]
+    UnsupportedOperator,
 
-impl Error for SyntaxError {
-    fn description(&self) -> &str {
-        &self.what
-    }
+    #[error("Invalid binary operands")]
+    InvalidBinaryOperands,
+
+    #[error("Invalid unary operand")]
+    InvalidUnaryOperands,
+
+    #[error("Invalid primary token")]
+    InvalidPrimaryToken,
+
+    #[error("Type mismatch in binary expression")]
+    TypeMismatchBinaryExpr,
+
+    #[error("Expression is not a callable")]
+    ExpressionNotCallable,
+
+    #[error("Expected newline")]
+    ExpectedNewline,
+
+    #[error("Expected equal sign")]
+    ExpectedEqual,
+
+    #[error("Expected identifier")]
+    ExpectedIdentifier,
+
+    #[error("Expected closing paren")]
+    ExpectedClosingParen,
+
+    #[error("Unexpected EOF")]
+    UnexpectedEOF,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -78,9 +94,7 @@ fn execute(stmt: &Stmt, env: &mut Environment) -> Result<Value, SyntaxError> {
             if env.define(name, value) {
                 Ok(value)
             } else {
-                Err(SyntaxError::new(&format!(
-                    "Variable {name} is already defined"
-                )))
+                Err(SyntaxError::VariableAlreadyDefined(name.to_string()))
             }
         }
     }
@@ -125,14 +139,14 @@ fn evaluate(expr: &Expr, env: &mut Environment) -> Result<Value, SyntaxError> {
                             Token::Plus => Ok(Value::Float(lf + rf)),
                             Token::Minus => Ok(Value::Float(lf - rf)),
                             Token::Slash => Ok(Value::Float(lf / rf)),
-                            _ => Err(SyntaxError::new("Unsupported operator")),
+                            _ => Err(SyntaxError::UnsupportedOperator),
                         },
-                        _ => Err(SyntaxError::new("Invalid binary operands")),
+                        _ => Err(SyntaxError::InvalidBinaryOperands),
                     },
-                    _ => Err(SyntaxError::new("Invalid binary operands")),
+                    _ => Err(SyntaxError::InvalidBinaryOperands),
                 }
             } else {
-                Err(SyntaxError::new("Type mismatch in binary expression"))
+                Err(SyntaxError::TypeMismatchBinaryExpr)
             }
         }
         Expr::Unary { operator, right } => {
@@ -140,9 +154,9 @@ fn evaluate(expr: &Expr, env: &mut Environment) -> Result<Value, SyntaxError> {
             match operator {
                 Token::Minus => match right_value {
                     Value::Float(rf) => Ok(Value::Float(-rf)),
-                    _ => Err(SyntaxError::new("Invalid unary operand")),
+                    _ => Err(SyntaxError::InvalidUnaryOperands),
                 },
-                _ => Err(SyntaxError::new("Invalid unary operator")),
+                _ => Err(SyntaxError::InvalidUnaryOperands),
             }
         }
         Expr::Call { callee, args } => match evaluate(callee, env)? {
@@ -150,12 +164,12 @@ fn evaluate(expr: &Expr, env: &mut Environment) -> Result<Value, SyntaxError> {
                 .iter()
                 .map(|arg| evaluate(arg, env).unwrap())
                 .collect())),
-            _ => Err(SyntaxError::new("Expression not callable")),
+            _ => Err(SyntaxError::ExpressionNotCallable),
         },
         Expr::LiteralNumber { value } => Ok(*value),
         Expr::Variable { name } => match env.get(name) {
             Some(value) => Ok(*value),
-            _ => Err(SyntaxError::new(&format!("Variable {name} is not defined"))),
+            _ => Err(SyntaxError::VariableNotDefined(name.to_string())),
         },
     }
 }
@@ -188,12 +202,12 @@ impl<'a> Parser<'a> {
                         };
                         match self.next_token() {
                             Some(Token::Newline) => Ok(var_decl),
-                            _ => Err(SyntaxError::new("Expected newline after declaration")),
+                            _ => Err(SyntaxError::ExpectedNewline),
                         }
                     }
-                    _ => Err(SyntaxError::new("Expected equal sign after identifier")),
+                    _ => Err(SyntaxError::ExpectedEqual),
                 },
-                _ => Err(SyntaxError::new("Expected identifier")),
+                _ => Err(SyntaxError::ExpectedIdentifier),
             }
         } else {
             self.statement()
@@ -208,10 +222,10 @@ impl<'a> Parser<'a> {
         let expr = self.expression()?;
         if let Some(token) = self.next_token() {
             if token != Token::Newline {
-                return Err(SyntaxError::new("Expected newline"));
+                return Err(SyntaxError::ExpectedNewline);
             }
         } else {
-            return Err(SyntaxError::new("Unexpected EOF"));
+            return Err(SyntaxError::UnexpectedEOF);
         }
         Ok(Stmt::Expr { expr })
     }
@@ -281,7 +295,7 @@ impl<'a> Parser<'a> {
                         args,
                     };
                 } else {
-                    return Err(SyntaxError::new("Expected closing parenthesis"));
+                    return Err(SyntaxError::ExpectedClosingParen);
                 }
             } else {
                 break;
@@ -304,17 +318,15 @@ impl<'a> Parser<'a> {
                             if token == Token::RightParen {
                                 Ok(expr)
                             } else {
-                                Err(SyntaxError::new("Missing closing parenthesis"))
+                                Err(SyntaxError::ExpectedClosingParen)
                             }
                         }
-                        _ => Err(SyntaxError::new(
-                            "Missing closing parenthesis, unexpected EOF",
-                        )),
+                        _ => Err(SyntaxError::UnexpectedEOF),
                     }
                 }
-                _ => Err(SyntaxError::new("Invalid primary token")),
+                _ => Err(SyntaxError::InvalidPrimaryToken),
             },
-            _ => Err(SyntaxError::new("Unexpected EOF")),
+            _ => Err(SyntaxError::UnexpectedEOF),
         }
     }
 
@@ -438,7 +450,10 @@ mod tests {
     fn add_number_with_identifier() {
         let value = interprete("1.5 + foo\n");
 
-        assert_eq!(value.unwrap_err().what, "Variable foo is not defined")
+        assert_eq!(
+            value.unwrap_err(),
+            SyntaxError::VariableNotDefined("foo".to_string())
+        );
     }
 
     #[test]
@@ -480,27 +495,21 @@ mod tests {
     fn no_expression_after_open_paren() {
         let value = interprete("(");
 
-        match value {
-            Ok(_) => assert!(false),
-            Err(e) => assert_eq!("Unexpected EOF", e.what),
-        }
+        assert_eq!(value.unwrap_err(), SyntaxError::UnexpectedEOF);
     }
 
     #[test]
     fn missing_closing_paren() {
         let value = interprete("(1 + 1(");
 
-        assert_eq!(value.unwrap_err().what, "Unexpected EOF");
+        assert_eq!(value.unwrap_err(), SyntaxError::UnexpectedEOF);
     }
 
     #[test]
     fn missing_closing_paren_at_eof() {
         let value = interprete("(1 + 1");
 
-        assert_eq!(
-            value.unwrap_err().what,
-            "Missing closing parenthesis, unexpected EOF"
-        );
+        assert_eq!(value.unwrap_err(), SyntaxError::UnexpectedEOF);
     }
 
     #[test]
@@ -537,34 +546,31 @@ mod tests {
     fn invalid_variable_declaration_no_identifier() {
         let value = interprete("let 3.14\n");
 
-        assert_eq!(value.unwrap_err().what, "Expected identifier");
+        assert_eq!(value.unwrap_err(), SyntaxError::ExpectedIdentifier);
     }
 
     #[test]
     fn invalid_variable_declaration_no_equal_sign() {
         let value = interprete("let foo\n");
 
-        assert_eq!(
-            value.unwrap_err().what,
-            "Expected equal sign after identifier"
-        );
+        assert_eq!(value.unwrap_err(), SyntaxError::ExpectedEqual);
     }
 
     #[test]
     fn invalid_variable_declaration_no_newline() {
         let value = interprete("let foo = 123");
 
-        assert_eq!(
-            value.unwrap_err().what,
-            "Expected newline after declaration"
-        );
+        assert_eq!(value.unwrap_err(), SyntaxError::ExpectedNewline);
     }
 
     #[test]
     fn variable_already_defined() {
         let value = interprete("let foo = 123\nlet foo = 321\n");
 
-        assert_eq!(value.unwrap_err().what, "Variable foo is already defined");
+        assert_eq!(
+            value.unwrap_err(),
+            SyntaxError::VariableAlreadyDefined("foo".to_string())
+        );
     }
 
     #[test]
