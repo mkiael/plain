@@ -70,7 +70,7 @@ impl Environment {
 
     fn define(&mut self, name: &str, value: Value) -> bool {
         if !self.variables.contains_key(name) {
-            self.variables.insert(name.to_string(), value) == None
+            self.variables.insert(name.to_string(), value).is_none()
         } else {
             false
         }
@@ -178,12 +178,14 @@ type ResultStmt = Result<Stmt, SyntaxError>;
 type ResultExpr = Result<Expr, SyntaxError>;
 
 struct Parser<'a> {
-    pub scanner: Scanner<'a>,
+    pub scanner: std::iter::Peekable<Scanner<'a>>,
 }
 
 impl<'a> Parser<'a> {
     fn new(scanner: Scanner<'a>) -> Self {
-        Parser { scanner }
+        Parser {
+            scanner: scanner.peekable(),
+        }
     }
 
     pub fn parse(&mut self) -> ResultStmt {
@@ -192,15 +194,15 @@ impl<'a> Parser<'a> {
 
     fn variable_decl(&mut self) -> ResultStmt {
         if self.is_next(&[Token::Let]) {
-            self.next_token();
-            match self.next_token() {
-                Some(Token::Identifier(name)) => match self.next_token() {
+            self.scanner.next();
+            match self.scanner.next() {
+                Some(Token::Identifier(name)) => match self.scanner.next() {
                     Some(Token::Equal) => {
                         let var_decl = Stmt::VarDecl {
                             name,
                             expr: self.expression()?,
                         };
-                        match self.next_token() {
+                        match self.scanner.next() {
                             Some(Token::Newline) => Ok(var_decl),
                             _ => Err(SyntaxError::ExpectedNewline),
                         }
@@ -220,7 +222,7 @@ impl<'a> Parser<'a> {
 
     fn exprstmt(&mut self) -> ResultStmt {
         let expr = self.expression()?;
-        if let Some(token) = self.next_token() {
+        if let Some(token) = self.scanner.next() {
             if token != Token::Newline {
                 return Err(SyntaxError::ExpectedNewline);
             }
@@ -237,7 +239,7 @@ impl<'a> Parser<'a> {
     fn term(&mut self) -> ResultExpr {
         let mut expr = self.factor()?;
         while self.is_next(&[Token::Plus, Token::Minus]) {
-            let op = self.next_token().unwrap();
+            let op = self.scanner.next().unwrap();
             let right = self.factor()?;
             expr = Expr::Binary {
                 operator: op,
@@ -251,7 +253,7 @@ impl<'a> Parser<'a> {
     fn factor(&mut self) -> ResultExpr {
         let mut expr = self.unary()?;
         while self.is_next(&[Token::Asterisc, Token::Slash]) {
-            let op = self.next_token().unwrap();
+            let op = self.scanner.next().unwrap();
             let right = self.unary()?;
             expr = Expr::Binary {
                 operator: op,
@@ -265,7 +267,7 @@ impl<'a> Parser<'a> {
     fn unary(&mut self) -> ResultExpr {
         if self.is_next(&[Token::Minus]) {
             Ok(Expr::Unary {
-                operator: self.next_token().unwrap(),
+                operator: self.scanner.next().unwrap(),
                 right: Box::new(self.primary()?),
             })
         } else {
@@ -276,20 +278,20 @@ impl<'a> Parser<'a> {
     fn call(&mut self) -> ResultExpr {
         let mut expr = self.primary()?;
         loop {
-            if self.peek() == Some(Token::LeftParen) {
-                self.next_token();
+            if self.scanner.peek() == Some(&Token::LeftParen) {
+                self.scanner.next();
                 let mut args: Vec<Expr> = Vec::new();
-                if self.peek() != Some(Token::RightParen) {
+                if self.scanner.peek() != Some(&Token::RightParen) {
                     loop {
                         args.push(self.expression()?);
-                        if self.peek() == Some(Token::Comma) {
-                            self.next_token();
+                        if self.scanner.peek() == Some(&Token::Comma) {
+                            self.scanner.next();
                         } else {
                             break;
                         }
                     }
                 }
-                if self.next_token() == Some(Token::RightParen) {
+                if self.scanner.next() == Some(Token::RightParen) {
                     expr = Expr::Call {
                         callee: Box::new(expr),
                         args,
@@ -305,7 +307,7 @@ impl<'a> Parser<'a> {
     }
 
     fn primary(&mut self) -> ResultExpr {
-        match self.next_token() {
+        match self.scanner.next() {
             Some(token) => match token {
                 Token::Identifier(name) => Ok(Expr::Variable { name }),
                 Token::Number(n) => Ok(Expr::LiteralNumber {
@@ -313,7 +315,7 @@ impl<'a> Parser<'a> {
                 }),
                 Token::LeftParen => {
                     let expr = self.term()?;
-                    match self.next_token() {
+                    match self.scanner.next() {
                         Some(token) => {
                             if token == Token::RightParen {
                                 Ok(expr)
@@ -330,20 +332,12 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn is_next(&self, tokens: &[Token]) -> bool {
-        if let Some(token) = self.peek() {
-            tokens.iter().any(|t| *t == token)
+    fn is_next(&mut self, tokens: &[Token]) -> bool {
+        if let Some(token) = self.scanner.peek() {
+            tokens.iter().any(|t| *t == *token)
         } else {
             false
         }
-    }
-
-    fn next_token(&mut self) -> Option<Token> {
-        self.scanner.next()
-    }
-
-    fn peek(&self) -> Option<Token> {
-        self.scanner.clone().next()
     }
 }
 
@@ -351,7 +345,7 @@ impl<'a> Iterator for Parser<'a> {
     type Item = ResultStmt;
 
     fn next(&mut self) -> Option<ResultStmt> {
-        if self.peek() == None {
+        if self.scanner.peek().is_none() {
             None
         } else {
             Some(self.parse())
